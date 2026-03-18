@@ -47,7 +47,7 @@ Azure DevOps Pipeline
 
 **Azure Container Apps over AKS.** The application is a stateless FastAPI service. It does not require the overhead of a full Kubernetes cluster. Container Apps is the appropriate target and significantly reduces infrastructure cost and operational complexity.
 
-**Self-hosted agent.** The pipeline uses a self-hosted agent pool named Default. This was a deliberate choice given the unavailability of Microsoft-hosted agents in this environment. The self-hosted agent requires Docker, the Azure CLI, and curl to be installed. See the prerequisites section for setup details.
+**Self-hosted agent.** The pipeline uses a self-hosted agent pool named Default. This was a deliberate choice given the unavailability of Microsoft-hosted agents in this environment. Self-hosted agent registered to the Default pool in ADO. The agent runs on a local development machine with Docker and the Azure CLI already present as part of the standard development environment for this project.
 
 ## Repository Structure
 
