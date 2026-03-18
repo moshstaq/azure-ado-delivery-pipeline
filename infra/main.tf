@@ -55,6 +55,15 @@ resource "azurerm_container_app" "this" {
   resource_group_name          = azurerm_resource_group.this.name
   revision_mode                = "Single"
 
+  identity {
+    type = "SystemAssigned"
+  }
+
+  registry {
+    server   = var.acr_login_server
+    identity = "System"
+  }
+
   template {
     container {
       name   = "fastapi"
@@ -72,4 +81,10 @@ resource "azurerm_container_app" "this" {
       latest_revision = true
     }
   }
+}
+
+resource "azurerm_role_assignment" "aca_acr_pull" {
+  scope                = azurerm_container_registry.this.id
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app.this.identity[0].principal_id
 }

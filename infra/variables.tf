@@ -38,3 +38,9 @@ variable "deployment_ip" {
   description = "Public IP of the deployment machine allowed through Key Vault network ACL"
   type        = string
 }
+
+variable "acr_login_server" {
+  description = "ACR login server address"
+  type        = string
+  default     = "acrproject2.azurecr.io"
+}
