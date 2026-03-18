@@ -22,6 +22,12 @@ variable "acr_name" {
   default     = "acrproject2"
 }
 
+variable "acr_login_server" {
+  description = "ACR login server address"
+  type        = string
+  default     = "acrproject2.azurecr.io"
+}
+
 variable "container_app_env_name" {
   description = "Name of the Container Apps environment"
   type        = string
@@ -34,13 +40,13 @@ variable "container_app_name" {
   default     = "ca-fastapi"
 }
 
+variable "app_env" {
+  description = "Application environment name injected at runtime"
+  type        = string
+  default     = "production"
+}
+
 variable "deployment_ip" {
   description = "Public IP of the deployment machine allowed through Key Vault network ACL"
   type        = string
-}
-
-variable "acr_login_server" {
-  description = "ACR login server address"
-  type        = string
-  default     = "acrproject2.azurecr.io"
 }

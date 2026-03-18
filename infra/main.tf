@@ -34,6 +34,14 @@ resource "azurerm_role_assignment" "kv_admin" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+resource "azurerm_key_vault_secret" "app_secret" {
+  name         = "app-secret"
+  value        = "project2-secret-value"
+  key_vault_id = azurerm_key_vault.this.id
+
+  depends_on = [azurerm_role_assignment.kv_admin]
+}
+
 resource "azurerm_container_registry" "this" {
   name                = var.acr_name
   resource_group_name = azurerm_resource_group.this.name
@@ -64,12 +72,33 @@ resource "azurerm_container_app" "this" {
     identity = "System"
   }
 
+  secret {
+    name                = "app-secret"
+    key_vault_secret_id = azurerm_key_vault_secret.app_secret.id
+    identity            = "System"
+  }
+
   template {
     container {
       name   = "fastapi"
       image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
       cpu    = 0.25
       memory = "0.5Gi"
+
+      env {
+        name  = "APP_ENV"
+        value = var.app_env
+      }
+
+      env {
+        name  = "APP_REGION"
+        value = var.location
+      }
+
+      env {
+        name        = "APP_SECRET"
+        secret_name = "app-secret"
+      }
     }
   }
 
@@ -81,10 +110,18 @@ resource "azurerm_container_app" "this" {
       latest_revision = true
     }
   }
+
+  depends_on = [azurerm_role_assignment.kv_admin]
 }
 
 resource "azurerm_role_assignment" "aca_acr_pull" {
   scope                = azurerm_container_registry.this.id
   role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app.this.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "aca_kv_secrets_user" {
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Secrets User"
   principal_id         = azurerm_container_app.this.identity[0].principal_id
 }
