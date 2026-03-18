@@ -1,0 +1,5 @@
+# Copy this file to terraform.tfvars and set your values
+# deployment_ip is your current public IP, used to allow Terraform access to Key Vault
+# Find it by running: curl -s https://api.ipify.org
+
+deployment_ip = "x.x.x.x"
