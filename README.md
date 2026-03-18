@@ -13,15 +13,19 @@ The pipeline enforces a delivery process rather than just running automation. No
 ```
 GitHub Repository
       │
-      │  trigger (push / PR)
+      │  trigger (push to main)
       ▼
 Azure DevOps Pipeline
       │
       ├── Stage 1: Build and Scan
-      │     └── Docker build + Trivy scan (blocks on CRITICAL/HIGH CVEs)
+      │     ├── Docker build
+      │     ├── Trivy scan (blocks on CRITICAL/HIGH CVEs)
+      │     └── Image saved as pipeline artifact
       │
       ├── Stage 2: Push to ACR
-      │     └── Image push + digest validation
+      │     ├── Image loaded from artifact (same build that was scanned)
+      │     ├── Image pushed to ACR
+      │     └── Digest validated post-push
       │
       └── Stage 3: Deploy to Container Apps
             └── Approval gate → az containerapp update
@@ -31,13 +35,19 @@ Azure DevOps Pipeline
 
 **GitHub as source, ADO as orchestrator.** Many enterprises already use both platforms. Separating source control from delivery governance means each platform does what it does best. GitHub handles collaboration and code review. ADO handles pipeline execution, environment approvals, and the audit trail.
 
+**Build once, scan, push the same artifact.** The Docker image is built exactly once in Stage 1. The built image is saved as a pipeline artifact using `docker save` and loaded in Stage 2 using `docker load` before being pushed to ACR. This guarantees that the image scanned by Trivy is identical to the image pushed to the registry. Rebuilding in the push stage, a common pattern in simpler pipelines, breaks this guarantee because a second build produces a different image digest.
+
 **Workload identity federation throughout.** Both the ADO-to-Azure service connection and the Container App-to-ACR pull use managed identities with federated credentials. No client secrets or stored passwords exist anywhere in this pipeline.
+
+**Key Vault wired to the Container App at runtime.** The Container App uses its system-assigned managed identity to read a secret from Key Vault. The secret is injected as an environment variable at runtime via a Container Apps secret reference. The `/secret-check` endpoint confirms that the secret is present and correctly sourced. This validates the end-to-end identity and secrets chain, not just the infrastructure provisioning.
 
 **Trivy scan as a hard gate.** The pipeline fails at Stage 1 if any CRITICAL or HIGH severity vulnerabilities are found in the image. This was validated during development when a real CVE (CVE-2024-47874 in starlette 0.38.6) was detected and resolved before the pipeline was allowed to proceed.
 
 **Approval gate on production.** The deployment stage uses an ADO environment with a required approval check. This mirrors the change control process in enterprise environments and ensures a human decision point exists before every production deployment.
 
 **Azure Container Apps over AKS.** The application is a stateless FastAPI service. It does not require the overhead of a full Kubernetes cluster. Container Apps is the appropriate target and significantly reduces infrastructure cost and operational complexity.
+
+**Self-hosted agent.** The pipeline uses a self-hosted agent pool named Default. This was a deliberate choice given the unavailability of Microsoft-hosted agents in this environment. The self-hosted agent requires Docker, the Azure CLI, and curl to be installed. See the prerequisites section for setup details.
 
 ## Repository Structure
 
@@ -51,6 +61,9 @@ azure-ado-delivery-pipeline/
     main.tf
     variables.tf
     outputs.tf
+    backend.tf
+    versions.tf
+    terraform.tfvars.example
   .azure/                     # ADO pipeline definition
     pipeline.yml
   README.md
@@ -58,45 +71,21 @@ azure-ado-delivery-pipeline/
 
 ## Infrastructure
 
-All resources are provisioned via Terraform in a dedicated resource group for clean teardown.
+All resources are provisioned via Terraform in a dedicated resource group. Remote state is stored in the existing platform state storage account following the same pattern established in the landing zone project.
 
-| Resource                   | Name            | Purpose                              |
-| -------------------------- | --------------- | ------------------------------------ |
-| Resource Group             | rg-project2     | Contains all project resources       |
-| Azure Container Registry   | acrproject2     | Stores container images              |
-| Container Apps Environment | cae-project2    | Hosts the Container App              |
-| Container App              | ca-fastapi      | Deployment target                    |
-| Key Vault                  | kv-ado-project2 | Secrets store for pipeline variables |
+| Resource                   | Name            | Purpose                                                 |
+| -------------------------- | --------------- | ------------------------------------------------------- |
+| Resource Group             | rg-project2     | Contains all project resources                          |
+| Azure Container Registry   | acrproject2     | Stores container images                                 |
+| Container Apps Environment | cae-project2    | Hosts the Container App, logs to central Log Analytics  |
+| Container App              | ca-fastapi      | Deployment target with system-assigned managed identity |
+| Key Vault                  | kv-ado-project2 | Stores the app-secret referenced at runtime             |
 
-Terraform remote state is stored in an existing backend storage account following the same pattern as prior projects in this portfolio.
+**Note on the initial Container App image.** Terraform provisions the Container App with a Microsoft placeholder image (`mcr.microsoft.com/azuredocs/containerapps-helloworld:latest`). This is intentional: the application image does not exist in ACR until the pipeline runs for the first time. The placeholder allows Terraform to complete successfully. The pipeline immediately replaces it on the first successful run via `az containerapp update`.
 
 ## Pipeline Configuration
 
-The pipeline references a variable group named `project2-vars` defined in ADO Library. This group holds non-secret configuration values including the ACR name, resource group, and Container App name.
-
-The ADO service connection to Azure uses workload identity federation scoped to the subscription. The GitHub service connection uses OAuth.
-
-## Running from Scratch
-
-### Prerequisites
-
-- Azure subscription with contributor access
-- Azure DevOps organisation at dev.azure.com/moshstaq
-- GitHub repository forked or cloned
-- Terraform 1.x installed
-- Azure CLI authenticated
-
-### 1. Provision infrastructure
-
-```bash
-cd infra
-terraform init
-terraform apply
-```
-
-### 2. Configure ADO
-
-Create a variable group named `project2-vars` in ADO Library with the following variables:
+The pipeline references a variable group named `project2-vars` defined in ADO Library.
 
 | Variable           | Value                  |
 | ------------------ | ---------------------- |
@@ -107,7 +96,36 @@ Create a variable group named `project2-vars` in ADO Library with the following 
 | APP_ENV            | production             |
 | APP_REGION         | eastus2                |
 
+The ADO service connection to Azure uses workload identity federation scoped to the subscription. The GitHub service connection uses OAuth.
+
+## Running from Scratch
+
+### Prerequisites
+
+- Azure subscription with Contributor access
+- Azure DevOps organisation at dev.azure.com/moshstaq
+- GitHub repository cloned
+- Terraform 1.x installed
+- Azure CLI authenticated
+- Self-hosted agent with Docker, Azure CLI, and curl installed and registered to the Default pool in ADO
+
+### 1. Provision infrastructure
+
+```bash
+cd infra
+cp terraform.tfvars.example terraform.tfvars
+# Set deployment_ip to your current public IP: curl -s https://api.ipify.org
+terraform init
+terraform apply
+```
+
+### 2. Configure ADO
+
+Create a variable group named `project2-vars` in ADO Library with the variables listed above.
+
 Create an environment named `production` in ADO Pipelines and add an approval check.
+
+Create a service connection named `azure-rm` using workload identity federation scoped to the subscription.
 
 ### 3. Create the pipeline
 
@@ -115,13 +133,14 @@ In ADO, create a new pipeline pointing to this repository and select `.azure/pip
 
 ### 4. Run
 
-Push a change to a branch, open a pull request to main, and the pipeline will trigger automatically. Approve the deployment gate in ADO when Stage 2 completes.
+Push a change to main. The pipeline triggers automatically. Approve the deployment gate in ADO when Stage 2 completes.
 
 ## Application
 
-The FastAPI application exposes two endpoints:
+The FastAPI application exposes three endpoints:
 
 - `GET /health` returns service status and version
-- `GET /info` returns the application name, environment, and region
+- `GET /info` returns the application name, environment, and region sourced from environment variables
+- `GET /secret-check` confirms that the Key Vault secret is correctly injected via the Container App managed identity
 
-These values confirm the deployment is live and environment variables are correctly injected at runtime.
+The `/secret-check` endpoint validates the full identity and secrets chain end to end. A successful response confirms that the Container App system-assigned managed identity has been granted Key Vault Secrets User, the secret reference is correctly configured in the Container App, and the secret value is available to the application at runtime.
