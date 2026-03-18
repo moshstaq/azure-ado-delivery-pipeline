@@ -1,5 +1,3 @@
-# .gitignore
-
 # Terraform
 *.tfstate
 *.tfstate.*
@@ -7,6 +5,7 @@
 .terraform.lock.hcl
 *.tfvars
 !*.tfvars.example
+*.bak
 
 # Secrets
 *.pem
@@ -23,22 +22,17 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
-*.swo   
+*.swo
 
 # Logs
-*.log 
+*.log
 
-#Screenshots
+# Screenshots
 *.png
 *.jpg
 *.jpeg
-*.gif*.tfvars
-*.tfstate
-*.tfstate.*
-.terraform/
-*.bak
+*.gif
 
 # Python
 __pycache__/
 *.pyc
-.env
