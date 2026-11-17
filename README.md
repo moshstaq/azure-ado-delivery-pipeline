@@ -1,10 +1,10 @@
 # azure-ado-delivery-pipeline
 
-A production-pattern CI/CD pipeline using Azure DevOps as the orchestration layer, GitHub as the source control platform, and Azure Container Apps as the deployment target.
+A CI/CD pipeline using Azure DevOps as the orchestration layer, GitHub as the source control platform, and Azure Container Apps as the deployment target.
 
 ## Overview
 
-This project demonstrates a common enterprise architecture where GitHub hosts the source code and Azure DevOps governs the delivery process. The two platforms are connected via a service connection, keeping developer collaboration separate from deployment orchestration.
+GitHub hosts the source code and Azure DevOps governs the delivery process, the split many organisations run when developer collaboration sits on one platform and release control sits on another. The two platforms are connected via a service connection, keeping developer collaboration separate from deployment orchestration.
 
 The pipeline enforces a delivery process rather than just running automation. No code reaches the deployment stage without passing a vulnerability scan, and no deployment occurs without explicit approval.
 
@@ -144,3 +144,11 @@ The FastAPI application exposes three endpoints:
 - `GET /secret-check` confirms that the Key Vault secret is correctly injected via the Container App managed identity
 
 The `/secret-check` endpoint validates the full identity and secrets chain end to end. A successful response confirms that the Container App system-assigned managed identity has been granted Key Vault Secrets User, the secret reference is correctly configured in the Container App, and the secret value is available to the application at runtime.
+
+## Related Repositories
+
+## Repository | Relationship
+
+stratum-platform | Internal developer platform — the current focus of this portfolio
+azure-landing-zone | Azure platform foundation
+aws-landing-zone | AWS platform foundation
