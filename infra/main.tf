@@ -85,6 +85,9 @@ resource "azurerm_container_app_environment" "this" {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
   }
+  timeouts {
+    create = "60m"
+  }
 }
 
 # --- Private endpoint: the app reaches the vault privately ---

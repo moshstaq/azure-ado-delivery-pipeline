@@ -1,0 +1,40 @@
+name: security-scan
+on:
+    pull_request:
+        paths: ["app/**", ".github/workflows/security-scan.yml"]
+    push:
+        branches: [main]
+        paths: ["app/**"]
+    schedule:
+        - cron: "17 3 * * 1" # Mondays 03:17 UTC
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+env:
+    TRIVY: aquasec/trivy:0.69.3 # keep in step with ADO's TRIVY_VERSION
+
+jobs:
+    scan:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Scan dependencies (before build)
+              run: >
+                  docker run --rm -v "$PWD/app:/src" $TRIVY fs
+                  --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 /src
+
+            - name: Build image (fresh, no cache)
+              run: docker build --pull --no-cache -t app:scan app/
+
+            - name: Scan image (report, never fails)
+              run: >
+                  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $TRIVY image
+                  --exit-code 0 --severity HIGH,CRITICAL app:scan
+
+            - name: Scan image (gate)
+              run: >
+                  docker run --rm -v /var/run/docker.sock:/var/run/docker.sock $TRIVY image
+                  --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed app:scan
