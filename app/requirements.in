@@ -1,0 +1,3 @@
+fastapi
+uvicorn
+starlette>=1.3.1
