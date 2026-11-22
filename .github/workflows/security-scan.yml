@@ -9,7 +9,7 @@ on:
     workflow_dispatch:
 
 permissions:
-    contents: read
+    contents: write
 
 env:
     TRIVY: aquasec/trivy:0.69.3 # keep in step with ADO's TRIVY_VERSION
