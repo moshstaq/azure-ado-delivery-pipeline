@@ -1,7 +1,6 @@
 name: security-scan
 on:
     pull_request:
-        paths: ["app/**", ".github/workflows/security-scan.yml"]
     push:
         branches: [main]
         paths: ["app/**"]
